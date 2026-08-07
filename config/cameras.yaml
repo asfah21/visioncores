@@ -1,0 +1,22 @@
+# Single source of truth for all camera configuration.
+# Add or remove one item here, then run: npm run generate:cameras
+cameras:
+  - id: cam1
+    label: Cam 1
+    description: Ruang Tengah
+    rtsp_url: "${CAM1_RTSP_URL}"
+
+  # - id: cam2
+  #   label: Cam 2
+  #   description: Ruang Makan
+  #   rtsp_url: "${CAM2_RTSP_URL}"
+
+  # - id: cam3
+  #   label: Cam 3
+  #   description: Teras Office 1
+  #   rtsp_url: "${CAM3_RTSP_URL}"
+
+  # - id: cam4
+  #   label: Cam 4
+  #   description: Gudang IT
+  #   rtsp_url: "${CAM4_RTSP_URL}"

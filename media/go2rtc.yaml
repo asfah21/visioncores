@@ -1,0 +1,11 @@
+﻿# GENERATED FILE - DO NOT EDIT. Source: config/cameras.yaml
+streams:
+  cam1: "${CAM1_RTSP_URL}"
+
+api:
+  listen: ":1984"
+
+rtsp:
+  listen: ":8554"
+  protocols:
+    - tcp  # Force TCP

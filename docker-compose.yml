@@ -1,0 +1,130 @@
+﻿services:
+  # ================= YOLO (LEGACY / OPTIONAL) =================
+  yolo:
+    build: ./yolo
+    container_name: yolo_service
+    restart: always
+    depends_on:
+      - backend
+      - media
+    volumes:
+      - ./yolo:/app
+      - ./yolo/.insightface:/root/.insightface
+    environment:
+      - OPENCV_FFMPEG_CAPTURE_OPTIONS=rtsp_transport;tcp
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    tty: true
+    stdin_open: true
+
+  # ================= YOLO TEMPLATE =================
+  x-yolo-template: &yolo-template
+    build: ./yolo
+    restart: always
+    depends_on:
+      - backend
+      - media
+    volumes:
+      - ./yolo:/app
+      - ./yolo/.insightface:/root/.insightface
+    environment:
+      - OPENCV_FFMPEG_CAPTURE_OPTIONS=rtsp_transport;tcp
+    tty: true
+    stdin_open: true
+
+  # ================= YOLO CAMERAS =================
+  # GENERATED FILE SECTION - Source: config/cameras.yaml
+  yolo_cam1:
+    <<: *yolo-template
+    container_name: yolo_cam1
+    environment:
+      - CAMERA_ID=cam1
+      - RTSP_URL=${CAM1_RTSP_URL:?Set CAM1_RTSP_URL in .env before starting the stack}
+
+
+  # ================= BACKEND =================
+  backend:
+    build: ./backend
+    container_name: backend_api
+    ports:
+      - "3001:3001"
+    restart: always
+    depends_on:
+      - db
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=vision
+      - DB_PASS=vision123
+      - DB_NAME=visiondb
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+
+  # ================= FRONTEND =================
+  frontend:
+    build: ./frontend
+    container_name: nextjs_app
+    ports:
+      - "3000:3000"
+    restart: always
+    depends_on:
+      - backend
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+
+  # ================= MEDIA =================
+  media:
+    image: alexxit/go2rtc
+    container_name: media_server
+    ports:
+      - "1984:1984"
+      - "8554:8554"
+      - "8555:8555"
+    volumes:
+      - ./media/go2rtc.yaml:/config/go2rtc.yaml
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # ================= POSTGRES =================
+  db:
+    image: postgres:15
+    container_name: postgres_db
+    restart: always
+    environment:
+      POSTGRES_USER: vision
+      POSTGRES_PASSWORD: vision123
+      POSTGRES_DB: visiondb
+      TZ: Asia/Makassar
+      PGTZ: Asia/Makassar
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+# ================= VOLUME =================
+volumes:
+  pgdata:
+
+
+
+
+
+

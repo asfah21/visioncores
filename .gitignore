@@ -1,0 +1,44 @@
+# Operating-system and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# JavaScript / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.vercel/
+frontend/coverage/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Local tooling and generated metadata
+.codebase-memory/
+docker-compose-yml2
+
+# Backups and temporary files
+*.bak
+*.tmp
+*.log
+
+# YOLO / InsightFace model assets (download separately; see docs/models.md)
+yolo/.insightface/
+yolo/yolov8n.pt
+yolo/yolo11n_openvino_model/
