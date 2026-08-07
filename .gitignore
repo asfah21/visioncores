@@ -40,5 +40,3 @@ docker-compose-yml2
 
 # YOLO / InsightFace model assets (download separately; see docs/models.md)
 yolo/.insightface/
-yolo/yolov8n.pt
-yolo/yolo11n_openvino_model/

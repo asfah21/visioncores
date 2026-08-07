@@ -24,7 +24,4 @@ RUN pip install --no-cache-dir \
 
 COPY . .
 
-# Download model otomatis saat build
-RUN python -c "from ultralytics import YOLO; YOLO('yolo11n.pt').export(format='openvino', half=True)" || true
-
 CMD ["python", "main.py"]
