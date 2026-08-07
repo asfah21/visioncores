@@ -17,7 +17,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-COPY --from=builder /app/public ./public
+# `public` is optional in this project. Next.js fails the build if Docker
+# tries to copy a directory that was not created in the builder stage.
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
