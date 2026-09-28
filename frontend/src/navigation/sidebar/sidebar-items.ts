@@ -1,4 +1,4 @@
-import { Gauge, Info, LayoutDashboard, type LucideIcon } from "lucide-react";
+import { Camera, Gauge, Info, LayoutDashboard, type LucideIcon } from "lucide-react";
 
 export interface NavSubItem {
   title: string;
@@ -46,6 +46,16 @@ export const sidebarItems: NavGroup[] = [
         url: "/dashboard/analytics",
         icon: Gauge,
         comingSoon: true,
+      },
+      {
+        title: "CCTV",
+        url: "/dashboard/cctv",
+        icon: Camera,
+        subItems: [
+          { title: "Live", url: "/dashboard/cctv" },
+          { title: "Playback", url: "/dashboard/cctv/playback" },
+          { title: "Cameras", url: "/dashboard/cctv/cameras" },
+        ],
       },
 
       // {

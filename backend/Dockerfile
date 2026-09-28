@@ -1,14 +1,17 @@
 FROM golang:1.22
 
 WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+
 COPY . .
 
-RUN go mod init backend || true
-RUN go get github.com/gofiber/fiber/v2
-RUN go get github.com/gofiber/websocket/v2
-RUN go get github.com/lib/pq
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 
 RUN go build -o main .
 
-CMD ["./main"]
+ENV RECORDING_PATH=/recordings
+ENV GO2RTC_CONFIG_PATH=/config/go2rtc.yaml
+ENV CAMERA_SEED_PATH=/seed/cameras.yaml
 
+CMD ["./main"]

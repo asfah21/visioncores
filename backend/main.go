@@ -1,294 +1,306 @@
 package main
 
 import (
-        "database/sql"
-        "log"
-        "os"
-        "sync"
-        "time"
+	"database/sql"
+	"log"
+	"sync"
+	"time"
 
-        "github.com/gofiber/fiber/v2"
-        "github.com/gofiber/fiber/v2/middleware/cors"
-        "github.com/gofiber/websocket/v2"
-        _ "github.com/lib/pq"
+	"backend/internal/auth"
+	"backend/internal/cameras"
+	"backend/internal/config"
+	dbpkg "backend/internal/db"
+	"backend/internal/go2rtc"
+	"backend/internal/onvif"
+	"backend/internal/ptz"
+	"backend/internal/recorder"
+	"backend/internal/recordings"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/websocket/v2"
+	_ "github.com/lib/pq"
 )
 
 var (
-        clients = make(map[*websocket.Conn]bool)
-        mu      sync.Mutex
-        db      *sql.DB
+	clients = make(map[*websocket.Conn]bool)
+	mu      sync.Mutex
+	db      *sql.DB
 
-        // 🔥 anti spam memory
-        lastSeen   = make(map[int64]time.Time)
-        lastSeenMu sync.Mutex
+	// 🔥 anti spam memory
+	lastSeen   = make(map[int64]time.Time)
+	lastSeenMu sync.Mutex
 )
 
 func main() {
-        initDB()
+	cfg := config.Load()
+	db = dbpkg.Open(cfg)
 
-        app := fiber.New()
+	camStore := cameras.NewStore(db, cfg.CredentialKey)
+	camStore.SeedFromYAML(cfg.CameraSeedPath)
+	recStore := recordings.NewStore(db)
+	mgr := recorder.NewManager(cfg, camStore, recStore)
+	recorder.StartJanitor(cfg, db)
+	mgr.AutoStart()
 
-        // ✅ CORS FIX
-        app.Use(cors.New(cors.Config{
-                AllowOrigins: "*",
-                AllowHeaders: "Origin, Content-Type, Accept",
-        }))
+	// keep go2rtc streams in sync with DB (best effort)
+	if list, err := camStore.List(true); err == nil {
+		_ = go2rtc.SyncFromDB(cfg, list)
+	}
 
-        // ===== API DETECTION =====
-        app.Post("/detection", func(c *fiber.Ctx) error {
-                var data map[string]interface{}
+	if cfg.InternalAPIToken == "" {
+		log.Println("WARN: INTERNAL_API_TOKEN empty — /detection stays open (legacy). Set it in production.")
+	}
 
-                if err := c.BodyParser(&data); err != nil {
-                        return err
-                }
+	app := fiber.New()
 
-                // 🔥 HANDLE BATCH
-                if data["event"] == "person_detect_batch" {
-                        if detections, ok := data["detections"].([]interface{}); ok {
-                                for _, d := range detections {
-                                        saveDetectionBatch(d.(map[string]interface{}))
-                                }
-                        }
-                }
+	// ✅ CORS FIX (legacy kept; /api/cctv proxy in Next.js avoids CORS for new APIs)
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Internal-Token",
+	}))
 
-                broadcast(data)
-                return c.SendStatus(200)
-        })
+	// ===== API DETECTION (legacy, service-to-service from YOLO) =====
+	app.Post("/detection", auth.InternalToken(cfg.InternalAPIToken), func(c *fiber.Ctx) error {
+		var data map[string]interface{}
 
-        // ===== TOTAL UNIQUE TODAY =====
-        app.Get("/count", func(c *fiber.Ctx) error {
-                cameraID := c.Query("camera_id")
+		if err := c.BodyParser(&data); err != nil {
+			return err
+		}
 
-                query := `
-                SELECT COUNT(DISTINCT person_id)
-                FROM detections
-                WHERE created_at >= CURRENT_DATE
-                AND created_at < CURRENT_DATE + INTERVAL '1 day'
-                `
-                var args []interface{}
+		// 🔥 HANDLE BATCH
+		if data["event"] == "person_detect_batch" {
+			if detections, ok := data["detections"].([]interface{}); ok {
+				for _, d := range detections {
+					saveDetectionBatch(d.(map[string]interface{}))
+				}
+			}
+		}
 
-                if cameraID != "" {
-                        query += " AND camera_id = $1"
-                        args = append(args, cameraID)
-                }
+		broadcast(data)
+		return c.SendStatus(200)
+	})
 
-                var count int
-                err := db.QueryRow(query, args...).Scan(&count)
-                if err != nil {
-                        return err
-                }
+	// ===== TOTAL UNIQUE TODAY (legacy) =====
+	app.Get("/count", func(c *fiber.Ctx) error {
+		cameraID := c.Query("camera_id")
 
-                return c.JSON(fiber.Map{"total": count})
-        })
+		query := `
+		SELECT COUNT(DISTINCT person_id)
+		FROM detections
+		WHERE created_at >= CURRENT_DATE
+		AND created_at < CURRENT_DATE + INTERVAL '1 day'
+		`
+		var args []interface{}
 
-        // ===== HEATMAP (per jam) =====
-        app.Get("/heatmap", func(c *fiber.Ctx) error {
-                cameraID := c.Query("camera_id")
+		if cameraID != "" {
+			query += " AND camera_id = $1"
+			args = append(args, cameraID)
+		}
 
-                query := `
-                        SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Makassar') as hour,
-                        COUNT(DISTINCT person_id)
-                        FROM detections
-                        WHERE created_at >= CURRENT_DATE
-                        AND created_at < CURRENT_DATE + INTERVAL '1 day'
-                `
-                var args []interface{}
+		var count int
+		err := db.QueryRow(query, args...).Scan(&count)
+		if err != nil {
+			return err
+		}
 
-                if cameraID != "" {
-                        query += " AND camera_id = $1"
-                        args = append(args, cameraID)
-                }
+		return c.JSON(fiber.Map{"total": count})
+	})
 
-                query += " GROUP BY hour ORDER BY hour"
+	// ===== HEATMAP (per jam) (legacy) =====
+	app.Get("/heatmap", func(c *fiber.Ctx) error {
+		cameraID := c.Query("camera_id")
 
-                rows, err := db.Query(query, args...)
-                if err != nil {
-                        return err
-                }
-                defer rows.Close()
+		query := `
+			SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'Asia/Makassar') as hour,
+			COUNT(DISTINCT person_id)
+			FROM detections
+			WHERE created_at >= CURRENT_DATE
+			AND created_at < CURRENT_DATE + INTERVAL '1 day'
+		`
+		var args []interface{}
 
-                result := []fiber.Map{}
+		if cameraID != "" {
+			query += " AND camera_id = $1"
+			args = append(args, cameraID)
+		}
 
-                for rows.Next() {
-                        var hour int
-                        var count int
+		query += " GROUP BY hour ORDER BY hour"
 
-                        if err := rows.Scan(&hour, &count); err != nil {
-                                continue
-                        }
+		rows, err := db.Query(query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
 
-                        result = append(result, fiber.Map{
-                                "hour":  hour,
-                                "count": count,
-                        })
-                }
+		result := []fiber.Map{}
 
-                return c.JSON(result)
-        })
+		for rows.Next() {
+			var hour int
+			var count int
 
-        // ===== CHART PER HARI =====
-        app.Get("/daily", func(c *fiber.Ctx) error {
-                cameraID := c.Query("camera_id")
+			if err := rows.Scan(&hour, &count); err != nil {
+				continue
+			}
 
-                query := `
-                        SELECT DATE(created_at AT TIME ZONE 'Asia/Makassar') as ddate,
-                        COUNT(DISTINCT person_id)
-                        FROM detections
-                `
-                var args []interface{}
+			result = append(result, fiber.Map{
+				"hour":  hour,
+				"count": count,
+			})
+		}
 
-                if cameraID != "" {
-                        query += " WHERE camera_id = $1"
-                        args = append(args, cameraID)
-                }
+		return c.JSON(result)
+	})
 
-                query += " GROUP BY ddate ORDER BY ddate"
+	// ===== CHART PER HARI (legacy) =====
+	app.Get("/daily", func(c *fiber.Ctx) error {
+		cameraID := c.Query("camera_id")
 
-                rows, err := db.Query(query, args...)
-                if err != nil {
-                        return err
-                }
-                defer rows.Close()
+		query := `
+			SELECT DATE(created_at AT TIME ZONE 'Asia/Makassar') as ddate,
+			COUNT(DISTINCT person_id)
+			FROM detections
+		`
+		var args []interface{}
 
-                result := []fiber.Map{}
+		if cameraID != "" {
+			query += " WHERE camera_id = $1"
+			args = append(args, cameraID)
+		}
 
-                for rows.Next() {
-                        var date string
-                        var count int
+		query += " GROUP BY ddate ORDER BY ddate"
 
-                        if err := rows.Scan(&date, &count); err != nil {
-                                continue
-                        }
+		rows, err := db.Query(query, args...)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
 
-                        result = append(result, fiber.Map{
-                                "date":  date,
-                                "count": count,
-                        })
-                }
+		result := []fiber.Map{}
 
-                return c.JSON(result)
-        })
+		for rows.Next() {
+			var date string
+			var count int
 
-        // ===== WS =====
-        app.Get("/ws", websocket.New(func(c *websocket.Conn) {
-                mu.Lock()
-                clients[c] = true
-                mu.Unlock()
+			if err := rows.Scan(&date, &count); err != nil {
+				continue
+			}
 
-                defer func() {
-                        mu.Lock()
-                        delete(clients, c)
-                        mu.Unlock()
-                        c.Close()
-                }()
+			result = append(result, fiber.Map{
+				"date":  date,
+				"count": count,
+			})
+		}
 
-                for {
-                        if _, _, err := c.ReadMessage(); err != nil {
-                                break
-                        }
-                }
-        }))
+		return c.JSON(result)
+	})
 
-        log.Fatal(app.Listen(":3001"))
-}
+	// ===== NEW CCTV API (JWT protected) =====
+	api := app.Group("/api", auth.Middleware(cfg.JWTSecret))
+	cameras.Register(api, camStore)
+	ptzCtrl := ptz.NewController(camStore, onvif.NewGoClient())
+	ptz.Register(api, ptzCtrl)
+	recordings.Register(api, recStore, mgr, cfg, db)
 
-func initDB() {
-        connStr := "host=" + os.Getenv("DB_HOST") +
-                " port=" + os.Getenv("DB_PORT") +
-                " user=" + os.Getenv("DB_USER") +
-                " password=" + os.Getenv("DB_PASS") +
-                " dbname=" + os.Getenv("DB_NAME") +
-                " sslmode=disable"
+	api.Get("/cameras/:id/stream-url", func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		if _, _, err := camStore.Get(id); err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "camera not found"})
+		}
+		return c.JSON(go2rtc.StreamURLs(cfg, id))
+	})
+	api.Post("/go2rtc/sync", func(c *fiber.Ctx) error {
+		list, err := camStore.List(true)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "db error"})
+		}
+		_ = go2rtc.SyncFromDB(cfg, list)
+		camStore.Touch("")
+		return c.JSON(fiber.Map{"ok": true, "streams": len(list)})
+	})
+	api.Get("/health", func(c *fiber.Ctx) error {
+		return c.JSON(fiber.Map{"ok": true})
+	})
 
-        var err error
-        db, err = sql.Open("postgres", connStr)
-        if err != nil {
-                log.Fatal(err)
-        }
+	// ===== WS (legacy) =====
+	app.Get("/ws", websocket.New(func(c *websocket.Conn) {
+		mu.Lock()
+		clients[c] = true
+		mu.Unlock()
 
-        if err = db.Ping(); err != nil {
-                log.Fatal("DB connection failed:", err)
-        }
+		defer func() {
+			mu.Lock()
+			delete(clients, c)
+			mu.Unlock()
+			c.Close()
+		}()
 
-        log.Println("✅ DB Connected")
+		for {
+			if _, _, err := c.ReadMessage(); err != nil {
+				break
+			}
+		}
+	}))
 
-        createTable()
-}
-
-func createTable() {
-        query := `
-        CREATE TABLE IF NOT EXISTS detections (
-                id SERIAL PRIMARY KEY,
-                camera_id TEXT,
-                person_id BIGINT,
-                action TEXT,
-                position TEXT,
-                created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
-        );
-        `
-
-        _, err := db.Exec(query)
-        if err != nil {
-                log.Fatal("CREATE TABLE ERROR:", err)
-        }
+	log.Fatal(app.Listen(":3001"))
 }
 
 // 🔥 ANTI SPAM INSERT (FIXED)
 func saveDetectionBatch(data map[string]interface{}) {
-        personVal, ok := data["person_id"].(float64)
-        if !ok {
-                return
-        }
+	personVal, ok := data["person_id"].(float64)
+	if !ok {
+		return
+	}
 
-        personID := int64(personVal)
+	personID := int64(personVal)
 
-        cameraID := "unknown"
-        if cam, ok := data["camera_id"].(string); ok {
-                cameraID = cam
-        }
+	cameraID := "unknown"
+	if cam, ok := data["camera_id"].(string); ok {
+		cameraID = cam
+	}
 
-        now := time.Now()
+	now := time.Now()
 
-        lastSeenMu.Lock()
-        defer lastSeenMu.Unlock()
+	lastSeenMu.Lock()
+	defer lastSeenMu.Unlock()
 
-        if last, ok := lastSeen[personID]; ok {
-                if now.Sub(last) < 10*time.Second {
-                        return
-                }
-        }
+	if last, ok := lastSeen[personID]; ok {
+		if now.Sub(last) < 10*time.Second {
+			return
+		}
+	}
 
-        lastSeen[personID] = now
+	lastSeen[personID] = now
 
-        query := `
-        INSERT INTO detections (camera_id, person_id, action, position)
-        VALUES ($1, $2, $3, $4)
-        `
+	query := `
+	INSERT INTO detections (camera_id, person_id, action, position)
+	VALUES ($1, $2, $3, $4)
+	`
 
-        // Ambil action & position dari data payload AI jika ada
-        var act, pos interface{}
-        if val, ok := data["action"].(string); ok {
-                act = val
-        }
-        if val, ok := data["position"].(string); ok {
-                pos = val
-        }
+	// Ambil action & position dari data payload AI jika ada
+	var act, pos interface{}
+	if val, ok := data["action"].(string); ok {
+		act = val
+	}
+	if val, ok := data["position"].(string); ok {
+		pos = val
+	}
 
-        _, err := db.Exec(query, cameraID, personID, act, pos)
-        if err != nil {
-                log.Println("DB INSERT ERROR:", err)
-        }
+	_, err := db.Exec(query, cameraID, personID, act, pos)
+	if err != nil {
+		log.Println("DB INSERT ERROR:", err)
+	}
 }
 
 func broadcast(data interface{}) {
-        mu.Lock()
-        defer mu.Unlock()
+	mu.Lock()
+	defer mu.Unlock()
 
-        for client := range clients {
-                err := client.WriteJSON(data)
-                if err != nil {
-                        client.Close()
-                        delete(clients, client)
-                }
-        }
+	for client := range clients {
+		err := client.WriteJSON(data)
+		if err != nil {
+			client.Close()
+			delete(clients, client)
+		}
+	}
 }

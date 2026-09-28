@@ -60,6 +60,19 @@
       - DB_USER=vision
       - DB_PASS=vision123
       - DB_NAME=visiondb
+      - JWT_SECRET=${JWT_SECRET:-visioncore-super-secret-key-change-in-production}
+      - INTERNAL_API_TOKEN=${INTERNAL_API_TOKEN:-}
+      - CREDENTIAL_KEY=${CREDENTIAL_KEY:-visioncore-credential-key-change-me-32b}
+      - RECORDING_PATH=/recordings
+      - RECORDING_RETENTION_DAYS=7
+      - RECORDING_SEGMENT_SECONDS=300
+      - GO2RTC_URL=http://media:1984
+      - GO2RTC_CONFIG_PATH=/config/go2rtc.yaml
+      - CAMERA_SEED_PATH=/seed/cameras.yaml
+    volumes:
+      - ./media/go2rtc.yaml:/config/go2rtc.yaml
+      - ./config/cameras.yaml:/seed/cameras.yaml:ro
+      - recordings:/recordings
     deploy:
       resources:
         limits:
@@ -75,6 +88,10 @@
     restart: always
     depends_on:
       - backend
+    environment:
+      - BACKEND_URL=http://backend:3001
+      - NEXT_PUBLIC_GO2RTC_URL=http://10.10.11.5:1984
+      - JWT_SECRET=${JWT_SECRET:-visioncore-super-secret-key-change-in-production}
     deploy:
       resources:
         limits:
@@ -122,6 +139,7 @@
 # ================= VOLUME =================
 volumes:
   pgdata:
+  recordings:
 
 
 

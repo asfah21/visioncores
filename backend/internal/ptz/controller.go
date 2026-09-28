@@ -1,0 +1,168 @@
+package ptz
+
+import (
+	"context"
+	"fmt"
+	"sync"
+	"time"
+
+	"backend/internal/cameras"
+	"backend/internal/onvif"
+)
+
+// Controller is GSIVision's PTZ abstraction. No ONVIF library types leak here.
+type Controller interface {
+	Move(ctx context.Context, cameraID string, pan, tilt, zoom float64, durationMs int) error
+	Stop(ctx context.Context, cameraID string) error
+	Info(ctx context.Context, cameraID string) (onvif.DeviceInfo, []onvif.Profile, onvif.Capabilities, error)
+	Status(ctx context.Context, cameraID string) (onvif.PTZStatus, error)
+}
+
+type controller struct {
+	cams   *cameras.Store
+	client onvif.OnvifClient
+
+	mu       sync.Mutex
+	profiles map[string]cachedProfile
+	timers   map[string]*time.Timer
+}
+
+type cachedProfile struct {
+	token string
+	exp   time.Time
+}
+
+func NewController(cams *cameras.Store, client onvif.OnvifClient) Controller {
+	return &controller{cams: cams, client: client, profiles: map[string]cachedProfile{}, timers: map[string]*time.Timer{}}
+}
+
+func (c *controller) device(cameraID string) (cameras.Camera, string, onvif.Device, error) {
+	cam, pw, err := c.cams.Get(cameraID)
+	if err != nil {
+		return cameras.Camera{}, "", onvif.Device{}, fmt.Errorf("camera not found")
+	}
+	return cam, pw, onvif.Device{Host: cam.Host, OnvifPort: cam.OnvifPort, Username: cam.Username, Password: pw}, nil
+}
+
+func (c *controller) profileToken(ctx context.Context, cameraID string, cam cameras.Camera, pw string, dev onvif.Device) (string, error) {
+	c.mu.Lock()
+	if p, ok := c.profiles[cameraID]; ok && time.Now().Before(p.exp) && p.token != "" {
+		tok := p.token
+		c.mu.Unlock()
+		return tok, nil
+	}
+	c.mu.Unlock()
+	ctx2, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	profs, err := c.client.Profiles(ctx2, dev)
+	if err != nil || len(profs) == 0 {
+		return "", fmt.Errorf("no media profiles")
+	}
+	tok := profs[0].Token
+	c.mu.Lock()
+	c.profiles[cameraID] = cachedProfile{token: tok, exp: time.Now().Add(5 * time.Minute)}
+	c.mu.Unlock()
+	return tok, nil
+}
+
+func validSpeed(v float64) bool { return v >= -1 && v <= 1 }
+
+// Move sends ContinuousMove then guarantees Stop after durationMs.
+// durationMs is clamped to 100..5000 so PTZ can never run unbounded.
+func (c *controller) Move(ctx context.Context, cameraID string, pan, tilt, zoom float64, durationMs int) error {
+	if !validSpeed(pan) || !validSpeed(tilt) || !validSpeed(zoom) {
+		return fmt.Errorf("pan/tilt/zoom must be in [-1,1]")
+	}
+	if durationMs <= 0 {
+		durationMs = 800
+	}
+	if durationMs < 100 {
+		durationMs = 100
+	}
+	if durationMs > 5000 {
+		durationMs = 5000
+	}
+	cam, _, dev, err := c.device(cameraID)
+	if err != nil {
+		return err
+	}
+	_ = cam
+	ctx2, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	token, err := c.profileToken(ctx2, cameraID, cam, "", dev)
+	if err != nil {
+		return err
+	}
+	if err := c.client.Move(ctx2, dev, token, pan, tilt, zoom); err != nil {
+		return err
+	}
+	// schedule guaranteed stop (serialised per camera)
+	c.mu.Lock()
+	if t, ok := c.timers[cameraID]; ok && t != nil {
+		t.Stop()
+	}
+	camID := cameraID
+	c.timers[cameraID] = time.AfterFunc(time.Duration(durationMs)*time.Millisecond, func() {
+		sctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+		defer cancel()
+		_ = c.client.Stop(sctx, dev, token)
+		c.mu.Lock()
+		delete(c.timers, camID)
+		c.mu.Unlock()
+	})
+	c.mu.Unlock()
+	return nil
+}
+
+func (c *controller) Stop(ctx context.Context, cameraID string) error {
+	cam, _, dev, err := c.device(cameraID)
+	if err != nil {
+		return err
+	}
+	_ = cam
+	c.mu.Lock()
+	if t, ok := c.timers[cameraID]; ok && t != nil {
+		t.Stop()
+		delete(c.timers, cameraID)
+	}
+	c.mu.Unlock()
+	ctx2, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	token, err := c.profileToken(ctx2, cameraID, cam, "", dev)
+	if err != nil {
+		return err
+	}
+	return c.client.Stop(ctx2, dev, token)
+}
+
+func (c *controller) Info(ctx context.Context, cameraID string) (onvif.DeviceInfo, []onvif.Profile, onvif.Capabilities, error) {
+	cam, _, dev, err := c.device(cameraID)
+	if err != nil {
+		return onvif.DeviceInfo{}, nil, onvif.Capabilities{}, err
+	}
+	_ = cam
+	ctx2, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	info, err := c.client.DeviceInfo(ctx2, dev)
+	if err != nil {
+		return onvif.DeviceInfo{}, nil, onvif.Capabilities{}, err
+	}
+	profs, _ := c.client.Profiles(ctx2, dev)
+	caps, _ := c.client.Capabilities(ctx2, dev)
+	return info, profs, caps, nil
+}
+
+func (c *controller) Status(ctx context.Context, cameraID string) (onvif.PTZStatus, error) {
+	cam, _, dev, err := c.device(cameraID)
+	if err != nil {
+		return onvif.PTZStatus{}, err
+	}
+	_ = cam
+	ctx2, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	token, err := c.profileToken(ctx2, cameraID, cam, "", dev)
+	if err != nil {
+		return onvif.PTZStatus{}, err
+	}
+	return c.client.Status(ctx2, dev, token)
+}
