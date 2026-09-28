@@ -2,6 +2,7 @@ package go2rtc
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -12,7 +13,20 @@ import (
 )
 
 // SyncFromDB regenerates go2rtc.yaml streams from DB (full RTSP) and best-effort reloads media.
+// When DB holds no usable streams it leaves the existing file untouched so a
+// working go2rtc.yaml (e.g. ${CAMx_RTSP_URL} expanded by the media container)
+// is never wiped by an empty seed.
 func SyncFromDB(cfg config.Config, list []cameras.Camera) error {
+	count := 0
+	for _, c := range list {
+		if c.Enabled && c.RTSPURL != "" {
+			count++
+		}
+	}
+	if count == 0 {
+		log.Println("go2rtc sync: no enabled cameras with rtsp_url in DB, keeping existing go2rtc.yaml")
+		return nil
+	}
 	var b strings.Builder
 	b.WriteString("# GENERATED FILE - DO NOT EDIT. Source: PostgreSQL cameras (synced by backend)\n")
 	b.WriteString("streams:\n")

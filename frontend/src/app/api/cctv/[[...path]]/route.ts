@@ -25,7 +25,12 @@ async function forward(req: NextRequest, path: string[]) {
     const buf = await req.arrayBuffer();
     init.body = buf;
   }
-  const upstream = await fetch(url, init);
+  let upstream: Response;
+  try {
+    upstream = await fetch(url, init);
+  } catch {
+    return NextResponse.json({ error: "backend tidak terjangkau (cek container backend_api)" }, { status: 502 });
+  }
   const outHeaders = new Headers();
   for (const k of ["content-type", "content-length", "accept-ranges", "content-range"]) {
     const v = upstream.headers.get(k);

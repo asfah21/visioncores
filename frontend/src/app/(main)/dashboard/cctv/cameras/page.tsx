@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,7 +49,12 @@ export default function CamerasPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="font-bold text-xl">CCTV — Kelola Kamera (DB source of truth)</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="font-bold text-xl">CCTV — Kelola Kamera (DB source of truth)</h1>
+        <Link href="/dashboard/cctv" className="text-sm underline">
+          ← Kembali ke Live
+        </Link>
+      </div>
       {msg ? <p className="text-sm text-amber-500">{msg}</p> : null}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         <Card>
@@ -67,6 +73,9 @@ export default function CamerasPage() {
                   </p>
                 </div>
                 <div className="flex gap-1">
+                  <Button size="sm" variant="outline" asChild>
+                    <Link href={`/dashboard/cctv/${c.id}`}>Live</Link>
+                  </Button>
                   <Button size="sm" variant="outline" onClick={() => cctvApi.testCamera(c.id).then((r) => setMsg(`${c.id}: RTSP ${r.rtsp.reachable ? "OK" : "gagal"} / ONVIF ${r.onvif.reachable ? "OK" : "gagal"}`)).catch((e) => setMsg(e.message))}>
                     Test
                   </Button>

@@ -64,6 +64,20 @@ Tested against Bardi/PPS Speed 5T (ONVIF :8000, RTSP :8554
 Lihat `.env.example`: `JWT_SECRET` (wajib sama frontend+backend),
 `INTERNAL_API_TOKEN`, `CREDENTIAL_KEY`, `RECORDING_RETENTION_DAYS=7`.
 
+Wajib di root `.env`: `CAM1_RTSP_URL` (dst. `CAM2_RTSP_URL`, …). File ini
+dibaca via `env_file` oleh service `backend` (seed DB + sync go2rtc) dan
+`media` (ekspansi `${CAM1_RTSP_URL}` di `go2rtc.yaml`). Tanpa ini go2rtc
+error `unsupported scheme: ${CAM1_RTSP_URL}` dan seed kamera dilewati.
+
+## Troubleshooting
+
+- `mse: streams: unsupported scheme: ${CAM1_RTSP_URL}` → `.env` belum ada /
+  belum terbaca container. Pastikan root `.env` berisi `CAM1_RTSP_URL=...`,
+  lalu `docker compose up -d --force-recreate media backend`.
+- Playback kosong + video tidak bisa diputar → pastikan recording pernah
+  jalan (`Start Recording` di detail kamera) dan backend sehat
+  (`GET /api/health` via `/api/cctv/health`, 502 = backend down).
+
 ## Halaman frontend
 
 - `/dashboard/cctv` — grid live 2x2 (iframe go2rtc, fallback generated-cameras).

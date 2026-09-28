@@ -3,6 +3,8 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
+export const dynamic = "force-dynamic";
+
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -19,6 +21,7 @@ function PlaybackInner() {
   const [current, setCurrent] = useState("");
   const [events, setEvents] = useState<{ person_id: number; action: string; at: string }[]>([]);
   const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     cctvApi.cameras().then((l) => {
@@ -30,20 +33,24 @@ function PlaybackInner() {
 
   async function load() {
     setErr("");
+    setLoading(true);
     try {
       const t = await cctvApi.timeline(camId, date);
-      setSegments(t.segments);
-      setRecs(t.recordings);
-      const first = t.segments[0];
-      const rec = t.recordings[0];
+      setSegments(t.segments ?? []);
+      setRecs(t.recordings ?? []);
+      const first = (t.segments ?? [])[0];
+      const rec = (t.recordings ?? [])[0];
       if (first && rec) {
         setCurrent(streamFileUrl(rec.id, first.file));
         cctvApi.events(rec.id).then(setEvents).catch(() => setEvents([]));
       } else {
         setCurrent("");
+        setEvents([]);
       }
     } catch (e) {
       setErr(e instanceof Error ? e.message : "gagal memuat");
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -70,10 +77,11 @@ function PlaybackInner() {
           Tanggal
           <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="w-[180px]" />
         </label>
-        <Button onClick={load} size="sm">
-          Muat
+        <Button onClick={load} size="sm" disabled={loading}>
+          {loading ? "Memuat…" : "Muat"}
         </Button>
       </div>
+      {loading ? <p className="text-muted-foreground text-sm">Memuat timeline…</p> : null}
       {err ? <p className="text-destructive text-sm">{err}</p> : null}
       <Card>
         <CardHeader>

@@ -54,6 +54,8 @@
     restart: always
     depends_on:
       - db
+    env_file:
+      - .env
     environment:
       - DB_HOST=db
       - DB_PORT=5432
@@ -106,6 +108,8 @@
       - "1984:1984"
       - "8554:8554"
       - "8555:8555"
+    env_file:
+      - .env
     volumes:
       - ./media/go2rtc.yaml:/config/go2rtc.yaml
     restart: always
