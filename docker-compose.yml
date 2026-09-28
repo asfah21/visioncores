@@ -1,40 +1,18 @@
-﻿services:
-  # ================= YOLO (LEGACY / OPTIONAL) =================
-  yolo:
-    build: ./yolo
-    container_name: yolo_service
-    restart: always
-    depends_on:
-      - backend
-      - media
-    volumes:
-      - ./yolo:/app
-      - ./yolo/.insightface:/root/.insightface
-    environment:
-      - OPENCV_FFMPEG_CAPTURE_OPTIONS=rtsp_transport;tcp
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 2G
-    tty: true
-    stdin_open: true
+x-yolo-template: &yolo-template
+  build: ./yolo
+  restart: always
+  depends_on:
+    - backend
+    - media
+  volumes:
+    - ./yolo:/app
+    - ./yolo/.insightface:/root/.insightface
+  environment:
+    - OPENCV_FFMPEG_CAPTURE_OPTIONS=rtsp_transport;tcp
+  tty: true
+  stdin_open: true
 
-  # ================= YOLO TEMPLATE =================
-  x-yolo-template: &yolo-template
-    build: ./yolo
-    restart: always
-    depends_on:
-      - backend
-      - media
-    volumes:
-      - ./yolo:/app
-      - ./yolo/.insightface:/root/.insightface
-    environment:
-      - OPENCV_FFMPEG_CAPTURE_OPTIONS=rtsp_transport;tcp
-    tty: true
-    stdin_open: true
-
+services:
   # ================= YOLO CAMERAS =================
   # GENERATED FILE SECTION - Source: config/cameras.yaml
   yolo_cam1:

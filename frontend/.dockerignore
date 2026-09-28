@@ -1,0 +1,12 @@
+node_modules
+.next
+out
+.git
+.gitignore
+.env*
+README.md
+CONTRIBUTING.md
+media/
+.husky/
+*.log
+tsconfig.tsbuildinfo
