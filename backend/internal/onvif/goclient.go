@@ -117,11 +117,11 @@ func (g *GoClient) Capabilities(ctx context.Context, dev Device) (Capabilities, 
 			caps.PTZ = true
 		}
 	}
-	if !caps.PTZ {
-		if profs, err := g.Profiles(ctx, dev); err == nil && len(profs) > 0 {
-			caps.PTZ = true
-		}
-	}
+	// NOTE: no fallback to "profiles exist => PTZ". Every ONVIF camera has
+	// media profiles, so that heuristic marked non-PTZ cameras (e.g. fixed
+	// Bardi units) as PTZ-capable and the UI showed a dead pad whose moves
+	// then failed with "ptz move http 500". PTZ support must come from the
+	// PTZ service presence only.
 	return caps, nil
 }
 

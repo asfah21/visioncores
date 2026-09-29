@@ -38,7 +38,10 @@ export function PtzPad({ cameraId }: { cameraId: string }) {
   }, [cameraId]);
 
   function fail(e: unknown) {
-    setMsg(e instanceof Error ? e.message : "PTZ command failed");
+    const raw = e instanceof Error ? e.message : "PTZ command failed";
+    // The device answered but refuses the move: no PTZ hardware/service.
+    // Show a friendly note instead of a raw SOAP fault.
+    setMsg(/ptz move http \d+|ActionNotSupported|not supported|no ptz/i.test(raw) ? "PTZ is not supported by this camera." : raw);
   }
 
   async function move(pan: number, tilt: number, zoom = 0, duration = 800) {
