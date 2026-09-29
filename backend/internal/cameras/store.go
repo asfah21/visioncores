@@ -15,9 +15,9 @@ type Store struct {
 func NewStore(db *sql.DB, credKey string) *Store { return &Store{DB: db, CredentialKey: credKey} }
 
 func (s *Store) List(onlyEnabled bool) ([]Camera, error) {
-	q := `SELECT id,name,description,host,rtsp_port,rtsp_url,username,password_enc,onvif_port,enabled,auto_record,ptz_profile,brand,created_at,updated_at FROM cameras ORDER BY id`
+	q := `SELECT id,name,description,host,rtsp_port,rtsp_url,username,password_enc,onvif_port,enabled,auto_record,ptz_profile,brand,created_at,updated_at FROM cameras ORDER BY created_at, id`
 	if onlyEnabled {
-		q = `SELECT id,name,description,host,rtsp_port,rtsp_url,username,password_enc,onvif_port,enabled,auto_record,ptz_profile,brand,created_at,updated_at FROM cameras WHERE enabled=true ORDER BY id`
+		q = `SELECT id,name,description,host,rtsp_port,rtsp_url,username,password_enc,onvif_port,enabled,auto_record,ptz_profile,brand,created_at,updated_at FROM cameras WHERE enabled=true ORDER BY created_at, id`
 	}
 	rows, err := s.DB.Query(q)
 	if err != nil {
