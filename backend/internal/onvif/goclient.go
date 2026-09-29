@@ -3,7 +3,10 @@ package onvif
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
+	"sync"
 	"time"
 
 	"github.com/use-go/onvif"
@@ -35,7 +38,20 @@ func (g *GoClient) open(dev Device) (*onvif.Device, error) {
 	if err != nil {
 		return nil, fmt.Errorf("onvif connect %s: %w", dev.Host, err)
 	}
+	if debugONVIF() {
+		log.Printf("onvif endpoints for %s: %v", dev.Host, d.GetServices())
+	}
 	return d, nil
+}
+
+var (
+	debugOnce sync.Once
+	debugVal  bool
+)
+
+func debugONVIF() bool {
+	debugOnce.Do(func() { debugVal = os.Getenv("ONVIF_DEBUG") != "" })
+	return debugVal
 }
 
 func (g *GoClient) DeviceInfo(ctx context.Context, dev Device) (DeviceInfo, error) {
@@ -50,7 +66,7 @@ func (g *GoClient) DeviceInfo(ctx context.Context, dev Device) (DeviceInfo, erro
 	}
 	defer resp.Body.Close()
 	var out device.GetDeviceInformationResponse
-	if err := readSOAP(resp, &out); err != nil {
+	if err := readSOAP(resp, &out, "DeviceInfo"); err != nil {
 		return DeviceInfo{}, err
 	}
 	return DeviceInfo{
@@ -74,7 +90,7 @@ func (g *GoClient) Profiles(ctx context.Context, dev Device) ([]Profile, error) 
 	}
 	defer resp.Body.Close()
 	var out media.GetProfilesResponse
-	if err := readSOAP(resp, &out); err != nil {
+	if err := readSOAP(resp, &out, "GetProfiles"); err != nil {
 		return nil, err
 	}
 	profs := make([]Profile, 0, len(out.Profiles))
@@ -121,7 +137,7 @@ func (g *GoClient) Status(ctx context.Context, dev Device, profileToken string) 
 	}
 	defer resp.Body.Close()
 	var out ptz.GetStatusResponse
-	if err := readSOAP(resp, &out); err != nil {
+	if err := readSOAP(resp, &out, "GetStatus"); err != nil {
 		return PTZStatus{}, err
 	}
 	return PTZStatus{
@@ -196,7 +212,7 @@ func (g *GoClient) Presets(ctx context.Context, dev Device, profileToken string)
 	}
 	defer resp.Body.Close()
 	var out presetsResponse
-	if err := readSOAP(resp, &out); err != nil {
+	if err := readSOAP(resp, &out, "GetPresets"); err != nil {
 		return nil, err
 	}
 	presets := make([]Preset, 0, len(out.Presets))
@@ -241,7 +257,7 @@ func (g *GoClient) SetPreset(ctx context.Context, dev Device, profileToken, name
 	}
 	defer resp.Body.Close()
 	var out ptz.SetPresetResponse
-	if err := readSOAP(resp, &out); err != nil {
+	if err := readSOAP(resp, &out, "SetPreset"); err != nil {
 		return "", err
 	}
 	return string(out.PresetToken), nil

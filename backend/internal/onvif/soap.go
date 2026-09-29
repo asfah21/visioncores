@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -11,16 +12,21 @@ import (
 )
 
 // readSOAP unwraps a SOAP envelope and decodes the first Body child into out.
-func readSOAP(resp *http.Response, out interface{}) error {
+// op labels the operation for diagnostics. Failures are logged server-side
+// with a body snippet (responses never carry passwords) so wire-level
+// incompatibilities with picky devices can be diagnosed from backend logs.
+func readSOAP(resp *http.Response, out interface{}, op string) error {
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Printf("onvif %s: http %d ct=%s body=%.300s", op, resp.StatusCode, resp.Header.Get("Content-Type"), body)
 		return fmt.Errorf("onvif http %d: %s", resp.StatusCode, truncate(string(body), 300))
 	}
 	doc := etree.NewDocument()
 	if err := doc.ReadFromString(string(body)); err != nil {
+		log.Printf("onvif %s: body not XML ct=%s len=%d body=%.400s", op, resp.Header.Get("Content-Type"), len(body), body)
 		return err
 	}
 	root := doc.Root()
@@ -51,6 +57,7 @@ func readSOAP(resp *http.Response, out interface{}) error {
 	// strip outer response wrapper: decode inner first response struct
 	// use-go types are shaped as <GetXResponse>...</GetXResponse> directly.
 	if err := xml.Unmarshal([]byte(payload), out); err != nil {
+		log.Printf("onvif %s: soap decode failed ct=%s body=%.400s", op, resp.Header.Get("Content-Type"), body)
 		return fmt.Errorf("soap decode: %w", err)
 	}
 	return nil
