@@ -16,6 +16,10 @@ type Controller interface {
 	Stop(ctx context.Context, cameraID string) error
 	Info(ctx context.Context, cameraID string) (onvif.DeviceInfo, []onvif.Profile, onvif.Capabilities, error)
 	Status(ctx context.Context, cameraID string) (onvif.PTZStatus, error)
+	ListPresets(ctx context.Context, cameraID string) ([]onvif.Preset, error)
+	GotoPreset(ctx context.Context, cameraID, presetToken string) error
+	SetPreset(ctx context.Context, cameraID, name string) (string, error)
+	GoHome(ctx context.Context, cameraID string) error
 }
 
 type controller struct {
@@ -55,8 +59,13 @@ func (c *controller) profileToken(ctx context.Context, cameraID string, cam came
 	ctx2, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	profs, err := c.client.Profiles(ctx2, dev)
-	if err != nil || len(profs) == 0 {
-		return "", fmt.Errorf("no media profiles")
+	if err != nil {
+		// surface the real cause (connect/auth/SOAP) instead of a bare label;
+		// host only, never credentials
+		return "", fmt.Errorf("onvif profiles for %s: %w (check ONVIF port/credentials)", dev.Host, err)
+	}
+	if len(profs) == 0 {
+		return "", fmt.Errorf("no media profiles for %s (device returned an empty profile list)", dev.Host)
 	}
 	tok := profs[0].Token
 	c.mu.Lock()
@@ -165,4 +174,70 @@ func (c *controller) Status(ctx context.Context, cameraID string) (onvif.PTZStat
 		return onvif.PTZStatus{}, err
 	}
 	return c.client.Status(ctx2, dev, token)
+}
+
+func (c *controller) ListPresets(ctx context.Context, cameraID string) ([]onvif.Preset, error) {
+	cam, _, dev, err := c.device(cameraID)
+	if err != nil {
+		return nil, err
+	}
+	_ = cam
+	ctx2, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	token, err := c.profileToken(ctx2, cameraID, cam, "", dev)
+	if err != nil {
+		return nil, err
+	}
+	return c.client.Presets(ctx2, dev, token)
+}
+
+func (c *controller) GotoPreset(ctx context.Context, cameraID, presetToken string) error {
+	if presetToken == "" {
+		return fmt.Errorf("preset token is required")
+	}
+	cam, _, dev, err := c.device(cameraID)
+	if err != nil {
+		return err
+	}
+	_ = cam
+	ctx2, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	token, err := c.profileToken(ctx2, cameraID, cam, "", dev)
+	if err != nil {
+		return err
+	}
+	return c.client.GotoPreset(ctx2, dev, token, presetToken)
+}
+
+func (c *controller) SetPreset(ctx context.Context, cameraID, name string) (string, error) {
+	if name == "" {
+		return "", fmt.Errorf("preset name is required")
+	}
+	cam, _, dev, err := c.device(cameraID)
+	if err != nil {
+		return "", err
+	}
+	_ = cam
+	ctx2, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	token, err := c.profileToken(ctx2, cameraID, cam, "", dev)
+	if err != nil {
+		return "", err
+	}
+	return c.client.SetPreset(ctx2, dev, token, name)
+}
+
+func (c *controller) GoHome(ctx context.Context, cameraID string) error {
+	cam, _, dev, err := c.device(cameraID)
+	if err != nil {
+		return err
+	}
+	_ = cam
+	ctx2, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	token, err := c.profileToken(ctx2, cameraID, cam, "", dev)
+	if err != nil {
+		return err
+	}
+	return c.client.GotoHome(ctx2, dev, token)
 }

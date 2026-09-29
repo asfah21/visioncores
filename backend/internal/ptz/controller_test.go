@@ -41,6 +41,18 @@ func (f *fakeONVIF) Stop(ctx context.Context, dev onvif.Device, tok string) erro
 	f.stops++
 	return nil
 }
+func (f *fakeONVIF) Presets(ctx context.Context, dev onvif.Device, tok string) ([]onvif.Preset, error) {
+	return []onvif.Preset{{Token: "1", Name: "Door"}}, nil
+}
+func (f *fakeONVIF) GotoPreset(ctx context.Context, dev onvif.Device, tok, preset string) error {
+	return nil
+}
+func (f *fakeONVIF) SetPreset(ctx context.Context, dev onvif.Device, tok, name string) (string, error) {
+	return "9", nil
+}
+func (f *fakeONVIF) GotoHome(ctx context.Context, dev onvif.Device, tok string) error {
+	return nil
+}
 
 // adapter: controller needs *cameras.Store; test validation path via Move input checks
 // by constructing controller with nil store is not possible, so test the pure rules here

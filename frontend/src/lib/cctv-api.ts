@@ -27,6 +27,8 @@ export type RecordingItem = {
 
 export type Segment = { file: string; start: string; size: number };
 
+export type Preset = { token: string; name: string };
+
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(`/api/cctv/${path}`, {
     ...init,
@@ -56,6 +58,12 @@ export const cctvApi = {
     req<{ ok: boolean }>(`cameras/${id}/ptz/move`, { method: "POST", body: JSON.stringify({ pan, tilt, zoom, duration }) }),
   ptzStop: (id: string) => req<{ ok: boolean }>(`cameras/${id}/ptz/stop`, { method: "POST", body: "{}" }),
   ptzStatus: (id: string) => req<{ pan: number; tilt: number; zoom: number }>(`cameras/${id}/ptz/status`),
+  ptzPresets: (id: string) => req<Preset[]>(`cameras/${id}/ptz/presets`),
+  ptzGotoPreset: (id: string, preset: string) =>
+    req<{ ok: boolean }>(`cameras/${id}/ptz/goto`, { method: "POST", body: JSON.stringify({ preset }) }),
+  ptzSetPreset: (id: string, name: string) =>
+    req<{ ok: boolean; preset: string }>(`cameras/${id}/ptz/preset`, { method: "POST", body: JSON.stringify({ name }) }),
+  ptzHome: (id: string) => req<{ ok: boolean }>(`cameras/${id}/ptz/home`, { method: "POST", body: "{}" }),
   recordings: (id: string, q = "") =>
     req<{ recordings: RecordingItem[]; segments: Segment[]; recording: boolean }>(`cameras/${id}/recordings${q}`),
   timeline: (id: string, date: string) =>

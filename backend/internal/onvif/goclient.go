@@ -10,6 +10,7 @@ import (
 	"github.com/use-go/onvif/device"
 	"github.com/use-go/onvif/media"
 	"github.com/use-go/onvif/ptz"
+	"github.com/use-go/onvif/xsd"
 	xonvif "github.com/use-go/onvif/xsd/onvif"
 )
 
@@ -169,5 +170,98 @@ func (g *GoClient) Stop(ctx context.Context, dev Device, profileToken string) er
 		return err
 	}
 	defer resp.Body.Close()
+	return nil
+}
+
+// presetsResponse decodes ALL <Preset> elements. (The lib's own
+// GetPresetsResponse holds a single Preset and would drop all but the last.)
+type presetsResponse struct {
+	Presets []presetEntry `xml:"Preset"`
+}
+
+type presetEntry struct {
+	Token string `xml:"token,attr"`
+	Name  string `xml:"Name"`
+}
+
+func (g *GoClient) Presets(ctx context.Context, dev Device, profileToken string) ([]Preset, error) {
+	d, err := g.open(dev)
+	if err != nil {
+		return nil, err
+	}
+	_ = ctx
+	resp, err := d.CallMethod(ptz.GetPresets{ProfileToken: xonvif.ReferenceToken(profileToken)})
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var out presetsResponse
+	if err := readSOAP(resp, &out); err != nil {
+		return nil, err
+	}
+	presets := make([]Preset, 0, len(out.Presets))
+	for _, p := range out.Presets {
+		presets = append(presets, Preset{Token: p.Token, Name: p.Name})
+	}
+	return presets, nil
+}
+
+func (g *GoClient) GotoPreset(ctx context.Context, dev Device, profileToken, presetToken string) error {
+	d, err := g.open(dev)
+	if err != nil {
+		return err
+	}
+	_ = ctx
+	resp, err := d.CallMethod(ptz.GotoPreset{
+		ProfileToken: xonvif.ReferenceToken(profileToken),
+		PresetToken:  xonvif.ReferenceToken(presetToken),
+	})
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("ptz goto preset http %d", resp.StatusCode)
+	}
+	return nil
+}
+
+func (g *GoClient) SetPreset(ctx context.Context, dev Device, profileToken, name string) (string, error) {
+	d, err := g.open(dev)
+	if err != nil {
+		return "", err
+	}
+	_ = ctx
+	resp, err := d.CallMethod(ptz.SetPreset{
+		ProfileToken: xonvif.ReferenceToken(profileToken),
+		PresetName:   xsd.String(name),
+	})
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	var out ptz.SetPresetResponse
+	if err := readSOAP(resp, &out); err != nil {
+		return "", err
+	}
+	return string(out.PresetToken), nil
+}
+
+func (g *GoClient) GotoHome(ctx context.Context, dev Device, profileToken string) error {
+	d, err := g.open(dev)
+	if err != nil {
+		return err
+	}
+	_ = ctx
+	resp, err := d.CallMethod(ptz.GotoHomePosition{
+		ProfileToken: xonvif.ReferenceToken(profileToken),
+	})
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("ptz go home http %d", resp.StatusCode)
+	}
 	return nil
 }

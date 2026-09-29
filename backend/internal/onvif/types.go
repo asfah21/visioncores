@@ -46,6 +46,11 @@ type Capabilities struct {
 }
 
 // OnvifClient is the single seam for all ONVIF traffic.
+type Preset struct {
+	Token string `json:"token"`
+	Name  string `json:"name"`
+}
+
 type OnvifClient interface {
 	DeviceInfo(ctx context.Context, dev Device) (DeviceInfo, error)
 	Profiles(ctx context.Context, dev Device) ([]Profile, error)
@@ -53,6 +58,10 @@ type OnvifClient interface {
 	Status(ctx context.Context, dev Device, profileToken string) (PTZStatus, error)
 	Move(ctx context.Context, dev Device, profileToken string, pan, tilt, zoom float64) error
 	Stop(ctx context.Context, dev Device, profileToken string) error
+	Presets(ctx context.Context, dev Device, profileToken string) ([]Preset, error)
+	GotoPreset(ctx context.Context, dev Device, profileToken, presetToken string) error
+	SetPreset(ctx context.Context, dev Device, profileToken, name string) (string, error)
+	GotoHome(ctx context.Context, dev Device, profileToken string) error
 }
 
 func Timeout(ctx context.Context, d time.Duration) (context.Context, context.CancelFunc) {
