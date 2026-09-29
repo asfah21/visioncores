@@ -26,8 +26,21 @@ func readSOAP(resp *http.Response, out interface{}, op string) error {
 	}
 	doc := etree.NewDocument()
 	if err := doc.ReadFromString(string(body)); err != nil {
-		log.Printf("onvif %s: body not XML ct=%s len=%d body=%.400s", op, resp.Header.Get("Content-Type"), len(body), body)
-		return err
+		log.Printf("onvif %s: body not XML ct=%s len=%d body=%q", op, resp.Header.Get("Content-Type"), len(body), body)
+		// Some devices emit bytes illegal in XML 1.0 (bad UTF-8, control
+		// chars in strings). Strict parsers (Go, etree-validate) reject the
+		// whole document while lenient ones (Python/zeep) accept it.
+		// Retry once with a sanitized copy.
+		if clean := sanitizeXML(body); len(clean) > 0 {
+			if err2 := doc.ReadFromString(string(clean)); err2 == nil {
+				log.Printf("onvif %s: recovered by sanitizing %d->%d bytes", op, len(body), len(clean))
+				body = clean
+			} else {
+				return err
+			}
+		} else {
+			return err
+		}
 	}
 	root := doc.Root()
 	if root == nil {
@@ -68,4 +81,20 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n] + "..."
+}
+
+// sanitizeXML drops bytes illegal in XML 1.0 so a document with device-side
+// garbage still parses. Well-formed documents pass through byte-identical.
+func sanitizeXML(b []byte) []byte {
+	s := strings.ToValidUTF8(string(b), "")
+	return []byte(strings.Map(func(r rune) rune {
+		switch {
+		case r == 0x9 || r == 0xA || r == 0xD:
+			return r
+		case r < 0x20 || (r >= 0x7F && r <= 0x84) || (r >= 0x86 && r <= 0x9F):
+			return -1
+		default:
+			return r
+		}
+	}, s))
 }
