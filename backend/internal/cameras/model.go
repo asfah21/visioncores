@@ -15,6 +15,9 @@ type Camera struct {
 	OnvifPort   int       `json:"onvif_port"`
 	Enabled     bool      `json:"enabled"`
 	AutoRecord  bool      `json:"auto_record"`
+	// PTZProfile overrides ONVIF profile discovery (GetProfiles) when set.
+	// For devices whose discovery is broken but whose PTZ works with a known token.
+	PTZProfile  string    `json:"ptz_profile,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -46,4 +49,5 @@ type UpsertInput struct {
 	OnvifPort   int    `json:"onvif_port"`
 	Enabled     *bool  `json:"enabled"`
 	AutoRecord  *bool  `json:"auto_record"`
+	PTZProfile  string `json:"ptz_profile"`
 }

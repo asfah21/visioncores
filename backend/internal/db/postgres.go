@@ -52,6 +52,7 @@ func Migrate(sqldb *sql.DB) {
 			onvif_port INT NOT NULL DEFAULT 8000,
 			enabled BOOLEAN NOT NULL DEFAULT true,
 			auto_record BOOLEAN NOT NULL DEFAULT false,
+			ptz_profile TEXT NOT NULL DEFAULT '',
 			created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
 			updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 		);`,
@@ -68,6 +69,7 @@ func Migrate(sqldb *sql.DB) {
 			created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_recordings_cam_start ON recordings(camera_id, start_time);`,
+		`ALTER TABLE cameras ADD COLUMN IF NOT EXISTS ptz_profile TEXT NOT NULL DEFAULT '';`,
 	}
 	for _, q := range stmts {
 		if _, err := sqldb.Exec(q); err != nil {

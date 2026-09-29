@@ -3,6 +3,7 @@ package ptz
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,16 +57,22 @@ func (c *controller) profileToken(ctx context.Context, cameraID string, cam came
 		return tok, nil
 	}
 	c.mu.Unlock()
+	// Manual override: skip GetProfiles discovery entirely. Some firmwares
+	// return malformed XAddrs or truncated discovery responses while PTZ
+	// itself works fine with a known token (e.g. IPCProfilesToken0).
+	if tok := strings.TrimSpace(cam.PTZProfile); tok != "" {
+		return tok, nil
+	}
 	ctx2, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	profs, err := c.client.Profiles(ctx2, dev)
 	if err != nil {
-		// surface the real cause (connect/auth/SOAP) instead of a bare label;
-		// host only, never credentials
-		return "", fmt.Errorf("onvif profiles for %s: %w (check ONVIF port/credentials)", dev.Host, err)
+		// surface the real cause (host only, never credentials).
+		// Mention credentials only when the failure actually looks like auth.
+		return "", fmt.Errorf("onvif profiles for %s: %w %s", dev.Host, err, profileHint(err))
 	}
 	if len(profs) == 0 {
-		return "", fmt.Errorf("no media profiles for %s (device returned an empty profile list)", dev.Host)
+		return "", fmt.Errorf("no media profiles for %s (device returned an empty profile list; set a manual PTZ profile for this camera)", dev.Host)
 	}
 	tok := profs[0].Token
 	c.mu.Lock()
@@ -75,6 +82,16 @@ func (c *controller) profileToken(ctx context.Context, cameraID string, cam came
 }
 
 func validSpeed(v float64) bool { return v >= -1 && v <= 1 }
+
+// profileHint tailors the guidance: credentials are mentioned only when the
+// failure actually looks like auth; otherwise point at discovery/XAddr issues.
+func profileHint(err error) string {
+	s := strings.ToLower(err.Error())
+	if strings.Contains(s, "401") || strings.Contains(s, "unauthor") || strings.Contains(s, "forbidden") || strings.Contains(s, "auth") {
+		return "(check ONVIF credentials)"
+	}
+	return "(profile discovery failed: malformed XAddr or broken GetProfiles response; set a manual PTZ profile for this camera)"
+}
 
 // Move sends ContinuousMove then guarantees Stop after durationMs.
 // durationMs is clamped to 100..5000 so PTZ can never run unbounded.

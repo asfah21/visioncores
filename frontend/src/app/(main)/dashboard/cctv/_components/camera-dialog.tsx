@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { cctvApi, type PublicCamera } from "@/lib/cctv-api";
 
-const empty = { id: "", name: "", description: "", host: "", rtsp_port: 8554, rtsp_url: "", username: "", password: "", onvif_port: 8000 };
+const empty = { id: "", name: "", description: "", host: "", rtsp_port: 8554, rtsp_url: "", username: "", password: "", onvif_port: 8000, ptz_profile: "" };
 
 export function CameraDialog({
   open,
@@ -40,6 +40,7 @@ export function CameraDialog({
               username: camera.username ?? "",
               password: "",
               onvif_port: camera.onvif_port || 8000,
+              ptz_profile: camera.ptz_profile ?? "",
             }
           : empty,
       );
@@ -83,6 +84,7 @@ export function CameraDialog({
           username: form.username,
           password: form.password,
           onvif_port: form.onvif_port,
+          ptz_profile: form.ptz_profile,
         });
       }
       try {
@@ -158,6 +160,15 @@ export function CameraDialog({
           <label htmlFor="cam-onvif-port" className="flex flex-col gap-1 text-xs">
             ONVIF Port
             <Input id="cam-onvif-port" type="number" value={form.onvif_port} onChange={(e) => set("onvif_port", Number(e.target.value))} />
+          </label>
+          <label htmlFor="cam-ptz-profile" className="flex flex-col gap-1 text-xs">
+            PTZ Profile (blank = auto)
+            <Input
+              id="cam-ptz-profile"
+              value={form.ptz_profile as string}
+              onChange={(e) => set("ptz_profile", e.target.value)}
+              placeholder="e.g. IPCProfilesToken0"
+            />
           </label>
         </div>
         {msg ? <p className="text-sm text-amber-500">{msg}</p> : null}

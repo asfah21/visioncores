@@ -10,6 +10,7 @@ export type PublicCamera = {
   username: string;
   enabled: boolean;
   auto_record: boolean;
+  ptz_profile?: string;
   created_at?: string;
   updated_at?: string;
 };
