@@ -46,8 +46,8 @@ export function DeleteCameraDialog({
           <DialogTitle className="flex items-center gap-2">
             <TriangleAlert className="size-5 text-destructive" /> Delete Camera
           </DialogTitle>
-          <DialogDescription>
-            Delete <span className="font-semibold text-foreground">{camera?.name || camera?.id}</span> ({camera?.id})? Recordings already
+          <DialogDescription className="text-justify">
+            Delete <span className="font-semibold text-foreground">{camera?.name || camera?.id}</span>? Recordings already
             stored on disk are kept, but the camera, its live stream, and future recordings will be removed. This action cannot be undone.
           </DialogDescription>
         </DialogHeader>

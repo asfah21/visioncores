@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Cctv, Pencil, Plus, Trash2, Video } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CAMERA_BRANDS, cctvApi, type PublicCamera } from "@/lib/cctv-api";
@@ -64,8 +63,8 @@ export default function CctvPage() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {cams.map((c) => (
             <Card key={c.id} className="transition-colors hover:border-primary">
-              <Link href={`/dashboard/cctv/${c.id}`} className="block">
-                <div className="flex items-start gap-3 p-4 pb-2">
+              <div className="flex items-stretch gap-3 p-4">
+                <Link href={`/dashboard/cctv/${c.id}`} className="flex min-w-0 flex-1 items-center gap-3">
                   <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
                     <Cctv className="size-6" />
                   </div>
@@ -76,43 +75,27 @@ export default function CctvPage() {
                     <p className="truncate font-semibold leading-tight">{c.name || c.id}</p>
                     {c.description ? <p className="truncate text-muted-foreground text-xs">{c.description}</p> : null}
                   </div>
-                  {c.enabled ? (
-                    <Badge variant="outline" className="shrink-0">
-                      Active
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="shrink-0">
-                      Disabled
-                    </Badge>
-                  )}
+                </Link>
+                <div className="flex shrink-0 flex-col items-center justify-between py-0.5">
+                  <span
+                    role="img"
+                    title={c.enabled ? "Active" : "Disabled"}
+                    aria-label={c.enabled ? "Active" : "Disabled"}
+                    className={`size-2.5 rounded-full ${c.enabled ? "bg-green-500" : "bg-red-500"}`}
+                  />
+                  <Button size="icon" variant="ghost" className="size-7" aria-label={`Edit ${c.id}`} onClick={() => setEditing(c)}>
+                    <Pencil className="size-4" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="size-7 text-destructive hover:text-destructive"
+                    aria-label={`Delete ${c.id}`}
+                    onClick={() => setDeleting(c)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
                 </div>
-              </Link>
-              <div className="flex justify-end gap-1 px-3 pb-2">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  aria-label={`Edit ${c.id}`}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setEditing(c);
-                  }}
-                >
-                  <Pencil className="size-4" />
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  aria-label={`Delete ${c.id}`}
-                  className="text-destructive hover:text-destructive"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setDeleting(c);
-                  }}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
               </div>
             </Card>
           ))}

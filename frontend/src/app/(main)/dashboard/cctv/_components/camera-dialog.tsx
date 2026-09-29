@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { cctvApi, CAMERA_BRANDS, type PublicCamera } from "@/lib/cctv-api";
 
@@ -108,11 +108,6 @@ export function CameraDialog({
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle>{editing ? `Edit Camera ${camera?.id}` : "Add Camera"}</DialogTitle>
-          <DialogDescription>
-            {editing
-              ? "Leave RTSP URL and Password blank to keep the existing values. The live stream refreshes after the stream config syncs."
-              : "Register a new camera. The camera ID is assigned automatically (cam1, cam2, ...). The live stream becomes available right away."}
-          </DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           {editing ? (
