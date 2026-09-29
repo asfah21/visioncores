@@ -11,6 +11,7 @@ export type PublicCamera = {
   enabled: boolean;
   auto_record: boolean;
   ptz_profile?: string;
+  brand?: string;
   created_at?: string;
   updated_at?: string;
 };
@@ -29,6 +30,13 @@ export type RecordingItem = {
 export type Segment = { file: string; start: string; size: number };
 
 export type Preset = { token: string; name: string };
+
+// Brand catalog mirrors backend/internal/cameras/brand.go.
+// Selecting a brand auto-fills the matching PTZ profile token.
+export const CAMERA_BRANDS = [
+  { value: "", label: "Generic ONVIF", ptz_profile: "" },
+  { value: "bardi", label: "Bardi / Tuya", ptz_profile: "IPCProfilesToken0" },
+] as const;
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const r = await fetch(`/api/cctv/${path}`, {

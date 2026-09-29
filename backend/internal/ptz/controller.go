@@ -63,6 +63,10 @@ func (c *controller) profileToken(ctx context.Context, cameraID string, cam came
 	if tok := strings.TrimSpace(cam.PTZProfile); tok != "" {
 		return tok, nil
 	}
+	// Brand preset: known token per camera brand (e.g. Bardi/Tuya).
+	if tok := cameras.BrandPTZProfile(cam.Brand); tok != "" {
+		return tok, nil
+	}
 	ctx2, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	profs, err := c.client.Profiles(ctx2, dev)

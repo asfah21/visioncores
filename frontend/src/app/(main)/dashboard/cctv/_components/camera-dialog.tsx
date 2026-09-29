@@ -5,9 +5,9 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { cctvApi, type PublicCamera } from "@/lib/cctv-api";
+import { cctvApi, CAMERA_BRANDS, type PublicCamera } from "@/lib/cctv-api";
 
-const empty = { id: "", name: "", description: "", host: "", rtsp_port: 8554, rtsp_url: "", username: "", password: "", onvif_port: 8000, ptz_profile: "" };
+const empty = { id: "", name: "", description: "", brand: "", host: "", rtsp_port: 8554, rtsp_url: "", username: "", password: "", onvif_port: 8000, ptz_profile: "" };
 
 export function CameraDialog({
   open,
@@ -41,6 +41,7 @@ export function CameraDialog({
               password: "",
               onvif_port: camera.onvif_port || 8000,
               ptz_profile: camera.ptz_profile ?? "",
+              brand: camera.brand ?? "",
             }
           : empty,
       );
@@ -85,6 +86,7 @@ export function CameraDialog({
           password: form.password,
           onvif_port: form.onvif_port,
           ptz_profile: form.ptz_profile,
+          brand: form.brand,
         });
       }
       try {
@@ -160,6 +162,26 @@ export function CameraDialog({
           <label htmlFor="cam-onvif-port" className="flex flex-col gap-1 text-xs">
             ONVIF Port
             <Input id="cam-onvif-port" type="number" value={form.onvif_port} onChange={(e) => set("onvif_port", Number(e.target.value))} />
+          </label>
+          <label htmlFor="cam-brand" className="flex flex-col gap-1 text-xs">
+            Brand
+            <select
+              id="cam-brand"
+              value={form.brand as string}
+              onChange={(e) => {
+                const v = e.target.value;
+                const preset = CAMERA_BRANDS.find((b) => b.value === v)?.ptz_profile ?? "";
+                // brand preset auto-fills the token; Generic leaves the field untouched
+                setForm((f) => ({ ...f, brand: v, ptz_profile: preset || f.ptz_profile }));
+              }}
+              className="rounded border bg-background px-2 py-1.5 text-sm"
+            >
+              {CAMERA_BRANDS.map((b) => (
+                <option key={b.value || "generic"} value={b.value}>
+                  {b.label}
+                </option>
+              ))}
+            </select>
           </label>
           <label htmlFor="cam-ptz-profile" className="flex flex-col gap-1 text-xs">
             PTZ Profile (blank = auto)

@@ -15,9 +15,9 @@ type Store struct {
 func NewStore(db *sql.DB, credKey string) *Store { return &Store{DB: db, CredentialKey: credKey} }
 
 func (s *Store) List(onlyEnabled bool) ([]Camera, error) {
-	q := `SELECT id,name,description,host,rtsp_port,rtsp_url,username,password_enc,onvif_port,enabled,auto_record,ptz_profile,created_at,updated_at FROM cameras ORDER BY id`
+	q := `SELECT id,name,description,host,rtsp_port,rtsp_url,username,password_enc,onvif_port,enabled,auto_record,ptz_profile,brand,created_at,updated_at FROM cameras ORDER BY id`
 	if onlyEnabled {
-		q = `SELECT id,name,description,host,rtsp_port,rtsp_url,username,password_enc,onvif_port,enabled,auto_record,ptz_profile,created_at,updated_at FROM cameras WHERE enabled=true ORDER BY id`
+		q = `SELECT id,name,description,host,rtsp_port,rtsp_url,username,password_enc,onvif_port,enabled,auto_record,ptz_profile,brand,created_at,updated_at FROM cameras WHERE enabled=true ORDER BY id`
 	}
 	rows, err := s.DB.Query(q)
 	if err != nil {
@@ -30,7 +30,7 @@ func (s *Store) List(onlyEnabled bool) ([]Camera, error) {
 		var c Camera
 		var enc string
 		var tmpl string
-		if err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.Host, &c.RTSPPort, &tmpl, &c.Username, &enc, &c.OnvifPort, &c.Enabled, &c.AutoRecord, &c.PTZProfile, &c.CreatedAt, &c.UpdatedAt); err != nil {
+		if err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.Host, &c.RTSPPort, &tmpl, &c.Username, &enc, &c.OnvifPort, &c.Enabled, &c.AutoRecord, &c.PTZProfile, &c.Brand, &c.CreatedAt, &c.UpdatedAt); err != nil {
 			continue
 		}
 		if pw, err := Decrypt(s.CredentialKey, enc); err == nil && pw != "" {
@@ -51,8 +51,8 @@ func tmplWithCreds(tmpl, username string) string {
 func (s *Store) Get(id string) (Camera, string, error) {
 	var c Camera
 	var enc, tmpl string
-	err := s.DB.QueryRow(`SELECT id,name,description,host,rtsp_port,rtsp_url,username,password_enc,onvif_port,enabled,auto_record,ptz_profile,created_at,updated_at FROM cameras WHERE id=$1`, id).
-		Scan(&c.ID, &c.Name, &c.Description, &c.Host, &c.RTSPPort, &tmpl, &c.Username, &enc, &c.OnvifPort, &c.Enabled, &c.AutoRecord, &c.PTZProfile, &c.CreatedAt, &c.UpdatedAt)
+	err := s.DB.QueryRow(`SELECT id,name,description,host,rtsp_port,rtsp_url,username,password_enc,onvif_port,enabled,auto_record,ptz_profile,brand,created_at,updated_at FROM cameras WHERE id=$1`, id).
+		Scan(&c.ID, &c.Name, &c.Description, &c.Host, &c.RTSPPort, &tmpl, &c.Username, &enc, &c.OnvifPort, &c.Enabled, &c.AutoRecord, &c.PTZProfile, &c.Brand, &c.CreatedAt, &c.UpdatedAt)
 	if err != nil {
 		return c, "", err
 	}
@@ -137,9 +137,9 @@ func (s *Store) Create(in UpsertInput) (Camera, error) {
 	}
 	name := strings.TrimSpace(in.Name)
 	username := strings.TrimSpace(in.Username)
-	_, err = s.DB.Exec(`INSERT INTO cameras(id,name,description,host,rtsp_port,rtsp_url,username,password_enc,onvif_port,enabled,auto_record,ptz_profile,updated_at)
-		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,now())`,
-		in.ID, name, strings.TrimSpace(in.Description), v.Host, v.RTSPPort, v.TemplateURL, username, v.EncPassword, v.Input.OnvifPort, enabled, autoRec, strings.TrimSpace(in.PTZProfile))
+	_, err = s.DB.Exec(`INSERT INTO cameras(id,name,description,host,rtsp_port,rtsp_url,username,password_enc,onvif_port,enabled,auto_record,ptz_profile,brand,updated_at)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())`,
+		in.ID, name, strings.TrimSpace(in.Description), v.Host, v.RTSPPort, v.TemplateURL, username, v.EncPassword, v.Input.OnvifPort, enabled, autoRec, strings.TrimSpace(in.PTZProfile), strings.TrimSpace(in.Brand))
 	if err != nil {
 		return Camera{}, err
 	}
@@ -196,8 +196,8 @@ func (s *Store) Update(id string, in UpsertInput) (Camera, error) {
 		if in.AutoRecord != nil {
 			autoRec = *in.AutoRecord
 		}
-		_, err = s.DB.Exec(`UPDATE cameras SET name=$2,description=$3,host=$4,rtsp_port=$5,rtsp_url=$6,username=$7,password_enc=$8,onvif_port=$9,enabled=$10,auto_record=$11,ptz_profile=$12,updated_at=now() WHERE id=$1`,
-			id, strings.TrimSpace(in.Name), strings.TrimSpace(in.Description), v.Host, v.RTSPPort, v.TemplateURL, strings.TrimSpace(in.Username), enc, v.Input.OnvifPort, enabled, autoRec, strings.TrimSpace(in.PTZProfile))
+		_, err = s.DB.Exec(`UPDATE cameras SET name=$2,description=$3,host=$4,rtsp_port=$5,rtsp_url=$6,username=$7,password_enc=$8,onvif_port=$9,enabled=$10,auto_record=$11,ptz_profile=$12,brand=$13,updated_at=now() WHERE id=$1`,
+			id, strings.TrimSpace(in.Name), strings.TrimSpace(in.Description), v.Host, v.RTSPPort, v.TemplateURL, strings.TrimSpace(in.Username), enc, v.Input.OnvifPort, enabled, autoRec, strings.TrimSpace(in.PTZProfile), strings.TrimSpace(in.Brand))
 		if err != nil {
 			return Camera{}, err
 		}
@@ -216,8 +216,8 @@ func (s *Store) Update(id string, in UpsertInput) (Camera, error) {
 	if in.AutoRecord != nil {
 		autoRec = *in.AutoRecord
 	}
-	_, err = s.DB.Exec(`UPDATE cameras SET name=$2,description=$3,host=$4,rtsp_port=$5,rtsp_url=$6,username=$7,password_enc=$8,onvif_port=$9,enabled=$10,auto_record=$11,ptz_profile=$12,updated_at=now() WHERE id=$1`,
-		id, strings.TrimSpace(in.Name), strings.TrimSpace(in.Description), v.Host, v.RTSPPort, v.TemplateURL, strings.TrimSpace(in.Username), v.EncPassword, v.Input.OnvifPort, enabled, autoRec, strings.TrimSpace(in.PTZProfile))
+	_, err = s.DB.Exec(`UPDATE cameras SET name=$2,description=$3,host=$4,rtsp_port=$5,rtsp_url=$6,username=$7,password_enc=$8,onvif_port=$9,enabled=$10,auto_record=$11,ptz_profile=$12,brand=$13,updated_at=now() WHERE id=$1`,
+		id, strings.TrimSpace(in.Name), strings.TrimSpace(in.Description), v.Host, v.RTSPPort, v.TemplateURL, strings.TrimSpace(in.Username), v.EncPassword, v.Input.OnvifPort, enabled, autoRec, strings.TrimSpace(in.PTZProfile), strings.TrimSpace(in.Brand))
 	if err != nil {
 		return Camera{}, err
 	}

@@ -2,15 +2,18 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Pencil, Plus, Trash2, Video } from "lucide-react";
+import { Cctv, Pencil, Plus, Trash2, Video } from "lucide-react";
 
-import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cctvApi, type PublicCamera } from "@/lib/cctv-api";
+import { Card, CardContent } from "@/components/ui/card";
+import { CAMERA_BRANDS, cctvApi, type PublicCamera } from "@/lib/cctv-api";
 import { CameraDialog } from "./_components/camera-dialog";
 import { DeleteCameraDialog } from "./_components/delete-camera-dialog";
+
+function brandLabel(brand?: string) {
+  return CAMERA_BRANDS.find((b) => b.value === (brand ?? ""))?.label ?? "Generic ONVIF";
+}
 
 export default function CctvPage() {
   const [cams, setCams] = useState<PublicCamera[]>([]);
@@ -58,27 +61,33 @@ export default function CctvPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {cams.map((c) => (
-            <Card key={c.id} className="overflow-hidden transition-colors hover:border-primary">
+            <Card key={c.id} className="transition-colors hover:border-primary">
               <Link href={`/dashboard/cctv/${c.id}`} className="block">
-                <div className="bg-black p-0">
-                  <AspectRatio ratio={16 / 9}>
-                    <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-muted/30 text-muted-foreground">
-                      <Video className="size-8" />
-                      <span className="text-xs">Click to view live</span>
-                    </div>
-                  </AspectRatio>
+                <div className="flex items-start gap-3 p-4 pb-2">
+                  <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                    <Cctv className="size-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[11px] tracking-wider text-muted-foreground uppercase">
+                      {brandLabel(c.brand)}
+                    </p>
+                    <p className="truncate font-semibold leading-tight">{c.name || c.id}</p>
+                    {c.description ? <p className="truncate text-muted-foreground text-xs">{c.description}</p> : null}
+                  </div>
+                  {c.enabled ? (
+                    <Badge variant="outline" className="shrink-0">
+                      Active
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="shrink-0">
+                      Disabled
+                    </Badge>
+                  )}
                 </div>
-                <CardHeader className="flex flex-row items-center justify-between gap-2 pb-2">
-                  <CardTitle className="truncate text-base">{c.name || c.id}</CardTitle>
-                  {c.enabled ? <Badge variant="outline">Active</Badge> : <Badge variant="secondary">Disabled</Badge>}
-                </CardHeader>
-                <CardContent className="pt-0 text-muted-foreground text-sm">
-                  <p className="truncate">{c.description || c.id}</p>
-                </CardContent>
               </Link>
-              <div className="flex justify-end gap-1 px-3 pb-3">
+              <div className="flex justify-end gap-1 px-3 pb-2">
                 <Button
                   size="sm"
                   variant="ghost"

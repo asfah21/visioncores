@@ -18,6 +18,9 @@ type Camera struct {
 	// PTZProfile overrides ONVIF profile discovery (GetProfiles) when set.
 	// For devices whose discovery is broken but whose PTZ works with a known token.
 	PTZProfile  string    `json:"ptz_profile,omitempty"`
+	// Brand selects a known PTZ preset (e.g. bardi -> IPCProfilesToken0).
+	// Empty = Generic ONVIF (live discovery).
+	Brand       string    `json:"brand,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -50,4 +53,5 @@ type UpsertInput struct {
 	Enabled     *bool  `json:"enabled"`
 	AutoRecord  *bool  `json:"auto_record"`
 	PTZProfile  string `json:"ptz_profile"`
+	Brand       string `json:"brand"`
 }
