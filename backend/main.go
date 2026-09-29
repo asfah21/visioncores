@@ -197,7 +197,18 @@ func main() {
 
 	// ===== NEW CCTV API (JWT protected) =====
 	api := app.Group("/api", auth.Middleware(cfg.JWTSecret))
-	cameras.Register(api, camStore)
+	cameras.Register(api, camStore, cameras.StreamHooks{
+		Upsert: func(id, rtspURL string) {
+			if err := go2rtc.UpsertStream(cfg.Go2rtcURL, id, rtspURL); err != nil {
+				log.Println("go2rtc upsert failed:", err)
+			}
+		},
+		Delete: func(id string) {
+			if err := go2rtc.DeleteStream(cfg.Go2rtcURL, id); err != nil {
+				log.Println("go2rtc delete failed:", err)
+			}
+		},
+	})
 	ptzCtrl := ptz.NewController(camStore, onvif.NewGoClient())
 	ptz.Register(api, ptzCtrl)
 	recordings.Register(api, recStore, mgr, cfg, db)

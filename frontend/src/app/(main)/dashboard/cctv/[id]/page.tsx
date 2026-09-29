@@ -16,6 +16,8 @@ export default function CameraDetailPage({ params }: { params: Promise<{ id: str
   const { id } = use(params);
   const [cam, setCam] = useState<PublicCamera | null>(null);
   const [info, setInfo] = useState("");
+  // null = capability unknown (ONVIF unreachable); pad stays visible as before
+  const [ptzSupported, setPtzSupported] = useState<boolean | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [current, setCurrent] = useState("");
   const [recording, setRecording] = useState(false);
@@ -28,8 +30,10 @@ export default function CameraDetailPage({ params }: { params: Promise<{ id: str
       try {
         const i = await cctvApi.info(id);
         setInfo(`${i.device.manufacturer} ${i.device.model} (${i.device.firmware})`);
+        setPtzSupported(i.capabilities?.ptz ?? false);
       } catch {
         setInfo("ONVIF info unavailable");
+        setPtzSupported(null);
       }
       const r = await cctvApi.recordings(id, `?limit=50`);
       // backend bisa mengembalikan null untuk array kosong → normalisasi ke []
@@ -46,9 +50,9 @@ export default function CameraDetailPage({ params }: { params: Promise<{ id: str
     }
   }
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: load on id change only
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   return (
@@ -60,8 +64,8 @@ export default function CameraDetailPage({ params }: { params: Promise<{ id: str
       {err ? <p className="text-destructive text-sm">{err}</p> : null}
       {info ? <p className="text-muted-foreground text-sm">{info}</p> : null}
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="overflow-hidden xl:col-span-2">
+      <div className={ptzSupported === false ? "flex flex-col gap-4" : "grid grid-cols-1 gap-4 xl:grid-cols-3"}>
+        <Card className={ptzSupported === false ? "overflow-hidden" : "overflow-hidden xl:col-span-2"}>
           <CardHeader>
             <CardTitle>Live</CardTitle>
           </CardHeader>
@@ -84,14 +88,16 @@ export default function CameraDetailPage({ params }: { params: Promise<{ id: str
             </Button>
           </div>
         </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>PTZ</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <PtzPad cameraId={id} />
-          </CardContent>
-        </Card>
+        {ptzSupported === false ? null : (
+          <Card>
+            <CardHeader>
+              <CardTitle>PTZ</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PtzPad cameraId={id} />
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <Card>

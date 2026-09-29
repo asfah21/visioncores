@@ -9,8 +9,16 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+// StreamHooks keeps an external stream router (go2rtc) in sync per camera.
+// All hooks are best-effort: CRUD always succeeds, failures are only logged
+// (startup SyncFromDB reconciles any drift).
+type StreamHooks struct {
+	Upsert func(id, rtspURL string)
+	Delete func(id string)
+}
+
 // Register mounts CRUD under /api (caller already applies JWT middleware).
-func Register(g fiber.Router, s *Store) {
+func Register(g fiber.Router, s *Store, hooks StreamHooks) {
 	g.Get("/cameras", func(c *fiber.Ctx) error {
 		list, err := s.List(false)
 		if err != nil {
@@ -41,6 +49,7 @@ func Register(g fiber.Router, s *Store) {
 		if err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 		}
+		syncStream(hooks, cam)
 		return c.Status(201).JSON(cam.ToPublic())
 	})
 	g.Put("/cameras/:id", func(c *fiber.Ctx) error {
@@ -52,11 +61,19 @@ func Register(g fiber.Router, s *Store) {
 		if err != nil {
 			return c.Status(400).JSON(fiber.Map{"error": err.Error()})
 		}
+		syncStream(hooks, cam)
 		return c.JSON(cam.ToPublic())
 	})
 	g.Delete("/cameras/:id", func(c *fiber.Ctx) error {
 		if err := s.Delete(c.Params("id")); err != nil {
 			return c.Status(500).JSON(fiber.Map{"error": "db error"})
+		}
+		if hooks.Delete != nil {
+			id := c.Params("id")
+			go func() {
+				defer func() { _ = recover() }()
+				hooks.Delete(id)
+			}()
 		}
 		return c.SendStatus(204)
 	})
@@ -79,8 +96,26 @@ func Register(g fiber.Router, s *Store) {
 	})
 }
 
-func dialOK(addr string, timeout time.Duration) bool {
-	conn, err := net.DialTimeout("tcp", addr, timeout)
+// syncStream mirrors one camera into the stream router:
+// enabled + has URL -> upsert, otherwise -> delete (e.g. camera disabled).
+// Runs async so CRUD latency is unaffected; failures are logged by the hook.
+func syncStream(hooks StreamHooks, cam Camera) {
+	if hooks.Upsert == nil && hooks.Delete == nil {
+		return
+	}
+	go func() {
+		defer func() { _ = recover() }()
+		if cam.Enabled && cam.RTSPURL != "" && hooks.Upsert != nil {
+			hooks.Upsert(cam.ID, cam.RTSPURL)
+			return
+		}
+		if hooks.Delete != nil {
+			hooks.Delete(cam.ID)
+		}
+	}()
+}
+
+func dialOK(addr string, timeout time.Duration) bool {	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
 		return false
 	}

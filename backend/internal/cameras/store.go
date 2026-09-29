@@ -24,7 +24,8 @@ func (s *Store) List(onlyEnabled bool) ([]Camera, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Camera
+	// init non-nil agar JSON selalu [] bukan null
+	out := []Camera{}
 	for rows.Next() {
 		var c Camera
 		var enc string
@@ -114,6 +115,14 @@ func (s *Store) Validate(in UpsertInput) (Validated, error) {
 }
 
 func (s *Store) Create(in UpsertInput) (Camera, error) {
+	// auto-generate id (cam1, cam2, ...) when the client omits it
+	if strings.TrimSpace(in.ID) == "" {
+		id, err := s.nextCameraID()
+		if err != nil {
+			return Camera{}, err
+		}
+		in.ID = id
+	}
 	v, err := s.Validate(in)
 	if err != nil {
 		return Camera{}, err
@@ -216,6 +225,31 @@ func (s *Store) Update(id string, in UpsertInput) (Camera, error) {
 func (s *Store) Delete(id string) error {
 	_, err := s.DB.Exec(`DELETE FROM cameras WHERE id=$1`, id)
 	return err
+}
+
+// nextCameraID returns the first free camN id (cam1, cam2, ...).
+// The PRIMARY KEY constraint is the final arbiter against races;
+// callers surface the conflict error so the client can retry.
+func (s *Store) nextCameraID() (string, error) {
+	rows, err := s.DB.Query(`SELECT id FROM cameras`)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	taken := map[string]bool{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err == nil {
+			taken[id] = true
+		}
+	}
+	for n := 1; n < 10000; n++ {
+		id := fmt.Sprintf("cam%d", n)
+		if !taken[id] {
+			return id, nil
+		}
+	}
+	return "", fmt.Errorf("no free camera id")
 }
 
 func (s *Store) Touch(id string) {

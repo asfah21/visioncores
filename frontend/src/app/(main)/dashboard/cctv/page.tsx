@@ -2,20 +2,23 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Video } from "lucide-react";
+import { Pencil, Plus, Trash2, Video } from "lucide-react";
 
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cctvApi, type PublicCamera } from "@/lib/cctv-api";
-import { AddCameraDialog } from "./_components/add-camera-dialog";
+import { CameraDialog } from "./_components/camera-dialog";
+import { DeleteCameraDialog } from "./_components/delete-camera-dialog";
 
 export default function CctvPage() {
   const [cams, setCams] = useState<PublicCamera[]>([]);
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<PublicCamera | null>(null);
+  const [deleting, setDeleting] = useState<PublicCamera | null>(null);
 
   async function load() {
     setLoading(true);
@@ -30,7 +33,7 @@ export default function CctvPage() {
     }
   }
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: load on mount only; refreshes via onAdded
+  // biome-ignore lint/correctness/useExhaustiveDependencies: load on mount only; refreshes after add/edit/delete
   useEffect(() => {
     load();
   }, []);
@@ -39,7 +42,7 @@ export default function CctvPage() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <h1 className="font-bold text-xl">CCTV</h1>
-        <Button size="sm" onClick={() => setDialogOpen(true)}>
+        <Button size="sm" onClick={() => setAddOpen(true)}>
           <Plus className="mr-1 size-4" /> Add Camera
         </Button>
       </div>
@@ -57,8 +60,8 @@ export default function CctvPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {cams.map((c) => (
-            <Link key={c.id} href={`/dashboard/cctv/${c.id}`} className="block">
-              <Card className="overflow-hidden transition-colors hover:border-primary">
+            <Card key={c.id} className="overflow-hidden transition-colors hover:border-primary">
+              <Link href={`/dashboard/cctv/${c.id}`} className="block">
                 <div className="bg-black p-0">
                   <AspectRatio ratio={16 / 9}>
                     <div className="flex h-full w-full flex-col items-center justify-center gap-1 bg-muted/30 text-muted-foreground">
@@ -74,12 +77,41 @@ export default function CctvPage() {
                 <CardContent className="pt-0 text-muted-foreground text-sm">
                   <p className="truncate">{c.description || c.id}</p>
                 </CardContent>
-              </Card>
-            </Link>
+              </Link>
+              <div className="flex justify-end gap-1 px-3 pb-3">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`Edit ${c.id}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setEditing(c);
+                  }}
+                >
+                  <Pencil className="size-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label={`Delete ${c.id}`}
+                  className="text-destructive hover:text-destructive"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDeleting(c);
+                  }}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            </Card>
           ))}
         </div>
       )}
-      <AddCameraDialog open={dialogOpen} onOpenChange={setDialogOpen} onAdded={load} />
+      <CameraDialog open={addOpen} onOpenChange={setAddOpen} onSaved={load} />
+      <CameraDialog open={!!editing} onOpenChange={(v) => !v && setEditing(null)} onSaved={load} camera={editing} />
+      <DeleteCameraDialog camera={deleting} onOpenChange={(v) => !v && setDeleting(null)} onDeleted={load} />
     </div>
   );
 }
