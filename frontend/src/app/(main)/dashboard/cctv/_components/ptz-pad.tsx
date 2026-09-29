@@ -66,7 +66,7 @@ export function PtzPad({ cameraId }: { cameraId: string }) {
         </Button>
       </div>
       {msg ? <p className="text-destructive text-xs">{msg}</p> : null}
-      <p className="text-muted-foreground text-[11px]">Pan/tilt/zoom ±1, auto-stop 800ms (maks 5s di backend).</p>
+      <p className="text-muted-foreground text-[11px]">Pan/tilt/zoom ±1, auto-stop 800ms (5s max on backend).</p>
     </div>
   );
 }

@@ -29,17 +29,20 @@ export default function CameraDetailPage({ params }: { params: Promise<{ id: str
         const i = await cctvApi.info(id);
         setInfo(`${i.device.manufacturer} ${i.device.model} (${i.device.firmware})`);
       } catch {
-        setInfo("ONVIF info tidak tersedia");
+        setInfo("ONVIF info unavailable");
       }
       const r = await cctvApi.recordings(id, `?limit=50`);
-      setSegments(r.segments);
+      // backend bisa mengembalikan null untuk array kosong → normalisasi ke []
+      const segs = r.segments ?? [];
+      const recs = r.recordings ?? [];
+      setSegments(segs);
       setRecording(r.recording);
-      if (r.segments[0] && !current) {
-        const recs = r.recordings[0];
-        if (recs) setCurrent(streamFileUrl(recs.id, r.segments[0].file));
+      if (segs[0] && !current) {
+        const first = recs[0];
+        if (first) setCurrent(streamFileUrl(first.id, segs[0].file));
       }
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "gagal memuat");
+      setErr(e instanceof Error ? e.message : "Failed to load");
     }
   }
 
@@ -51,7 +54,7 @@ export default function CameraDetailPage({ params }: { params: Promise<{ id: str
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-2">
-        <h1 className="font-bold text-xl">Kamera {cam?.name ?? id}</h1>
+        <h1 className="font-bold text-xl">Camera {cam?.name ?? id}</h1>
         {recording ? <Badge className="bg-red-500">● REC</Badge> : <Badge variant="outline">idle</Badge>}
       </div>
       {err ? <p className="text-destructive text-sm">{err}</p> : null}
@@ -93,13 +96,13 @@ export default function CameraDetailPage({ params }: { params: Promise<{ id: str
 
       <Card>
         <CardHeader>
-          <CardTitle>Playback terbaru</CardTitle>
+          <CardTitle>Latest playback</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
           {current ? (
             <video src={current} controls className="max-h-[420px] w-full rounded bg-black" preload="metadata" />
           ) : (
-            <p className="text-muted-foreground text-sm">Belum ada segmen. Mulai recording untuk mengisi timeline.</p>
+            <p className="text-muted-foreground text-sm">No segments yet. Start recording to fill the timeline.</p>
           )}
           <Timeline segments={segments} onPick={(s) => setCurrent(`/api/cctv/recordings/0/stream?file=${encodeURIComponent(s.file)}`)} />
         </CardContent>

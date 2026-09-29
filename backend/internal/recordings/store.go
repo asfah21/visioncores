@@ -79,7 +79,8 @@ func (s *Store) List(cameraID string, from, to *time.Time, limit int) ([]Recordi
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Recording
+	// init non-nil agar JSON selalu [] bukan null
+	out := []Recording{}
 	for rows.Next() {
 		var r Recording
 		if err := rows.Scan(&r.ID, &r.CameraID, &r.StartTime, &r.EndTime, &r.DurationSec, &r.FilePath, &r.FileSize, &r.Format, &r.Status, &r.CreatedAt); err != nil {

@@ -25,7 +25,7 @@ export function Timeline({ segments, onPick }: { segments: Segment[]; onPick: (s
             <button
               key={h}
               type="button"
-              title={`${String(h).padStart(2, "0")}:00 — ${segs.length} segmen`}
+              title={`${String(h).padStart(2, "0")}:00 — ${segs.length} segments`}
               onClick={() => segs[0] && onPick(segs[0])}
               className={cn(
                 "h-6 rounded-sm border",
@@ -35,7 +35,7 @@ export function Timeline({ segments, onPick }: { segments: Segment[]; onPick: (s
           );
         })}
       </div>
-      <p className="mt-1 text-[11px] text-muted-foreground">Blok hijau = ada rekaman. Klik untuk memutar segmen pertama jam itu.</p>
+      <p className="mt-1 text-[11px] text-muted-foreground">Green block = recording available. Click to play the first segment of that hour.</p>
     </div>
   );
 }

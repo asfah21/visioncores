@@ -170,7 +170,8 @@ type Segment struct {
 func segmentsOnDisk(cfg config.Config, cameraID string, from, to *time.Time) []Segment {
 	base, _ := filepath.Abs(cfg.RecordingPath)
 	root := filepath.Join(base, cameraID)
-	var out []Segment
+	// init non-nil agar JSON selalu [] bukan null (frontend Timeline melakukan for..of)
+	out := []Segment{}
 	_ = filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(strings.ToLower(info.Name()), ".mp4") {
 			return nil

@@ -65,6 +65,7 @@ export const cctvApi = {
     req<{ camera_id: string; person_id: number; action: string; at: string }[]>(`recordings/${id}/events`),
   startRec: (id: string) => req<{ ok: boolean }>(`cameras/${id}/recordings/start`, { method: "POST", body: "{}" }),
   stopRec: (id: string) => req<{ ok: boolean }>(`cameras/${id}/recordings/stop`, { method: "POST", body: "{}" }),
+  go2rtcSync: () => req<{ ok: boolean; streams: number }>(`go2rtc/sync`, { method: "POST", body: "{}" }),
 };
 
 export function streamFileUrl(recId: number, file: string) {

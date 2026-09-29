@@ -51,11 +51,6 @@ export const sidebarItems: NavGroup[] = [
         title: "CCTV",
         url: "/dashboard/cctv",
         icon: Camera,
-        subItems: [
-          { title: "Live", url: "/dashboard/cctv" },
-          { title: "Playback", url: "/dashboard/cctv/playback" },
-          { title: "Cameras", url: "/dashboard/cctv/cameras" },
-        ],
       },
 
       // {
