@@ -36,6 +36,7 @@ export type Preset = { token: string; name: string };
 export const CAMERA_BRANDS = [
   { value: "", label: "Generic ONVIF", ptz_profile: "" },
   { value: "bardi", label: "Bardi / Tuya", ptz_profile: "IPCProfilesToken0" },
+  { value: "hikvision", label: "Hikvision", ptz_profile: "" },
 ] as const;
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {

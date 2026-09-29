@@ -20,7 +20,7 @@ func BrandPTZProfile(brand string) string {
 
 // KnownBrands lists selectable brands: generic first, then presets.
 func KnownBrands() []string {
-	return []string{"", "bardi"}
+	return []string{"", "bardi", "hikvision"}
 }
 
 // BrandLabel is the display name for a brand value.
@@ -28,6 +28,8 @@ func BrandLabel(brand string) string {
 	switch strings.ToLower(strings.TrimSpace(brand)) {
 	case "bardi", "tuya":
 		return "Bardi / Tuya"
+	case "hikvision", "hik":
+		return "Hikvision"
 	default:
 		return "Generic ONVIF"
 	}
