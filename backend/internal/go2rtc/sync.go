@@ -34,19 +34,29 @@ func SyncFromDB(cfg config.Config, list []cameras.Camera) error {
 		if !c.Enabled || c.RTSPURL == "" {
 			continue
 		}
-		// quote to keep YAML valid
-		b.WriteString(fmt.Sprintf("  %s: \"%s\"\n", c.ID, c.RTSPURL))
+		if !cameras.ValidID(c.ID) {
+			log.Println("go2rtc sync: skip invalid camera id", c.ID)
+			continue
+		}
+		// quote key AND value: numeric ids (e.g. "2") would otherwise
+		// become YAML int keys and break go2rtc config parsing
+		b.WriteString(fmt.Sprintf("  %q: %q\n", c.ID, c.RTSPURL))
 	}
 	b.WriteString("\napi:\n  listen: \":1984\"\n\nrtsp:\n  listen: \":8554\"\n  protocols:\n    - tcp  # Force TCP\n")
 	if cfg.Go2rtcConfigPath != "" {
 		_ = os.WriteFile(cfg.Go2rtcConfigPath, []byte(b.String()), 0644)
 	}
-	// best-effort reload; ignore errors (media may restart on its own)
+	// best-effort reload; log failures (media may need a restart to pick up the file)
 	client := &http.Client{Timeout: 3 * time.Second}
 	req, _ := http.NewRequest("POST", strings.TrimRight(cfg.Go2rtcURL, "/")+"/api/reload", nil)
 	resp, err := client.Do(req)
-	if err == nil {
-		resp.Body.Close()
+	if err != nil {
+		log.Println("go2rtc sync: reload request failed:", err, "(restart media_server to apply new config)")
+		return nil
+	}
+	resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		log.Println("go2rtc sync: reload returned", resp.Status, "(restart media_server to apply new config)")
 	}
 	return nil
 }
